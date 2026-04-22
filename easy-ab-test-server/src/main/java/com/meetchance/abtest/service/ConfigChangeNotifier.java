@@ -2,10 +2,10 @@ package com.meetchance.abtest.service;
 
 import com.meetchance.abtest.dto.ServiceConfigDTO;
 import com.meetchance.abtest.entity.Experiment;
-import com.meetchance.abtest.entity.ExperimentGroup;
+import com.meetchance.abtest.entity.ExperimentRule;
 import com.meetchance.abtest.entity.ServiceEntity;
-import com.meetchance.abtest.mapper.ExperimentGroupMapper;
 import com.meetchance.abtest.mapper.ExperimentMapper;
+import com.meetchance.abtest.mapper.ExperimentRuleMapper;
 import com.meetchance.abtest.mapper.ServiceMapper;
 import com.meetchance.abtest.websocket.ConfigWebSocketHandler;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ public class ConfigChangeNotifier {
     private final ConfigWebSocketHandler configWebSocketHandler;
     private final ServiceMapper serviceMapper;
     private final ExperimentMapper experimentMapper;
-    private final ExperimentGroupMapper experimentGroupMapper;
+    private final ExperimentRuleMapper experimentRuleMapper;
     
     public void notifyConfigChange(Long serviceId) {
         try {
@@ -30,8 +30,12 @@ public class ConfigChangeNotifier {
             
             List<Experiment> experiments = experimentMapper.findByServiceIdAndStatus(serviceId, Experiment.ExperimentStatus.RUNNING);
             for (Experiment experiment : experiments) {
-                List<ExperimentGroup> groups = experimentGroupMapper.findByExperimentId(experiment.getId());
-                experiment.setGroups(groups);
+                List<ExperimentRule> rules = experimentRuleMapper.findByExperimentId(experiment.getId());
+                for (ExperimentRule rule : rules) {
+                    rule.parseJson();
+                }
+                experiment.setRules(rules);
+                experiment.parseJson();
             }
             
             ServiceConfigDTO config = ServiceConfigDTO.fromEntities(service, experiments);
