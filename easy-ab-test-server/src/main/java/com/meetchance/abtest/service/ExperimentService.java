@@ -38,10 +38,16 @@ public class ExperimentService {
         experiment.setPercentage(request.getPercentage());
         experiment.setUserAttribute(request.getUserAttribute());
         experiment.setAttributeValues(request.getAttributeValues());
-        experiment.setGroups(request.getGroups());
         experiment.setServiceId(request.getServiceId());
         experiment.setStatus(Experiment.ExperimentStatus.DRAFT);
         experiment.setCreatedBy(user.getId());
+        
+        if (request.getGroups() != null) {
+            for (ExperimentGroup group : request.getGroups()) {
+                group.setExperiment(experiment);
+            }
+            experiment.setGroups(request.getGroups());
+        }
         
         Experiment saved = experimentRepository.save(experiment);
         cacheExperiment(saved);
@@ -63,13 +69,15 @@ public class ExperimentService {
         experiment.setPercentage(request.getPercentage());
         experiment.setUserAttribute(request.getUserAttribute());
         experiment.setAttributeValues(request.getAttributeValues());
+        experiment.setServiceId(request.getServiceId());
         
         if (request.getGroups() != null) {
             experiment.getGroups().clear();
-            experiment.getGroups().addAll(request.getGroups());
+            for (ExperimentGroup group : request.getGroups()) {
+                group.setExperiment(experiment);
+                experiment.getGroups().add(group);
+            }
         }
-        
-        experiment.setServiceId(request.getServiceId());
         
         Experiment saved = experimentRepository.save(experiment);
         cacheExperiment(saved);

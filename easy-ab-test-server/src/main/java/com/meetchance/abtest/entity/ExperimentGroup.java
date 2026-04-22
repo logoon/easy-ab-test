@@ -1,5 +1,6 @@
 package com.meetchance.abtest.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -23,4 +24,9 @@ public class ExperimentGroup {
     private String config;
     
     private Boolean isControl = false;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "experiment_id")
+    @JsonIgnore
+    private Experiment experiment;
 }

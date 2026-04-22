@@ -29,8 +29,7 @@ public class Experiment {
     private String userAttribute;
     private String attributeValues;
     
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
-    @JoinColumn(name = "experiment_id")
+    @OneToMany(mappedBy = "experiment", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private List<ExperimentGroup> groups;
     
     private Long serviceId;
