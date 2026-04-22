@@ -3,8 +3,8 @@ package com.meetchance.abtest.service;
 import com.meetchance.abtest.dto.ServiceRequest;
 import com.meetchance.abtest.entity.ServiceEntity;
 import com.meetchance.abtest.entity.User;
-import com.meetchance.abtest.repository.ServiceRepository;
-import com.meetchance.abtest.repository.UserRepository;
+import com.meetchance.abtest.mapper.ServiceMapper;
+import com.meetchance.abtest.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -13,14 +13,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ServiceService {
     
-    private final ServiceRepository serviceRepository;
-    private final UserRepository userRepository;
+    private final ServiceMapper serviceMapper;
+    private final UserMapper userMapper;
     
     public ServiceEntity createService(ServiceRequest request, String username) {
-        User user = userRepository.findByUsername(username)
+        User user = userMapper.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("用户不存在"));
         
-        if (serviceRepository.existsByServiceCode(request.getServiceCode())) {
+        if (serviceMapper.existsByServiceCode(request.getServiceCode())) {
             throw new RuntimeException("服务编码已存在");
         }
         
@@ -30,44 +30,46 @@ public class ServiceService {
         service.setDescription(request.getDescription());
         service.setCreatedBy(user.getId());
         
-        return serviceRepository.save(service);
+        serviceMapper.save(service);
+        return service;
     }
     
     public ServiceEntity updateService(Long id, ServiceRequest request) {
-        ServiceEntity service = serviceRepository.findById(id)
+        ServiceEntity service = serviceMapper.findById(id)
             .orElseThrow(() -> new RuntimeException("服务不存在"));
         
         service.setServiceName(request.getServiceName());
         service.setDescription(request.getDescription());
         
-        return serviceRepository.save(service);
+        serviceMapper.update(service);
+        return service;
     }
     
     public void deleteService(Long id) {
-        if (!serviceRepository.existsById(id)) {
+        if (!serviceMapper.existsById(id)) {
             throw new RuntimeException("服务不存在");
         }
-        serviceRepository.deleteById(id);
+        serviceMapper.deleteById(id);
     }
     
     public ServiceEntity getServiceById(Long id) {
-        return serviceRepository.findById(id)
+        return serviceMapper.findById(id)
             .orElseThrow(() -> new RuntimeException("服务不存在"));
     }
     
     public ServiceEntity getServiceByCode(String code) {
-        return serviceRepository.findByServiceCode(code)
+        return serviceMapper.findByServiceCode(code)
             .orElseThrow(() -> new RuntimeException("服务不存在"));
     }
     
     public List<ServiceEntity> getAllServices(String username) {
-        User user = userRepository.findByUsername(username)
+        User user = userMapper.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("用户不存在"));
         
-        return serviceRepository.findByCreatedBy(user.getId());
+        return serviceMapper.findByCreatedBy(user.getId());
     }
     
     public List<ServiceEntity> getAllServices() {
-        return serviceRepository.findAll();
+        return serviceMapper.findAll();
     }
 }

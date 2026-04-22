@@ -4,11 +4,13 @@ import com.meetchance.abtest.dto.ExperimentRequest;
 import com.meetchance.abtest.entity.Experiment;
 import com.meetchance.abtest.entity.ExperimentGroup;
 import com.meetchance.abtest.entity.User;
-import com.meetchance.abtest.repository.ExperimentRepository;
-import com.meetchance.abtest.repository.UserRepository;
+import com.meetchance.abtest.mapper.ExperimentGroupMapper;
+import com.meetchance.abtest.mapper.ExperimentMapper;
+import com.meetchance.abtest.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -17,15 +19,18 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class ExperimentService {
     
-    private final ExperimentRepository experimentRepository;
-    private final UserRepository userRepository;
+    private final ExperimentMapper experimentMapper;
+    private final ExperimentGroupMapper experimentGroupMapper;
+    private final UserMapper userMapper;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ConfigChangeNotifier configChangeNotifier;
     
     private static final String EXPERIMENT_CACHE_PREFIX = "experiment:";
     private static final String SERVICE_EXPERIMENTS_CACHE_PREFIX = "service:experiments:";
     
+    @Transactional
     public Experiment createExperiment(ExperimentRequest request, String username) {
-        User user = userRepository.findByUsername(username)
+        User user = userMapper.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("用户不存在"));
         
         Experiment experiment = new Experiment();
@@ -42,22 +47,33 @@ public class ExperimentService {
         experiment.setStatus(Experiment.ExperimentStatus.DRAFT);
         experiment.setCreatedBy(user.getId());
         
+        experimentMapper.save(experiment);
+        
         if (request.getGroups() != null) {
             for (ExperimentGroup group : request.getGroups()) {
-                group.setExperiment(experiment);
+                group.setExperimentId(experiment.getId());
+                experimentGroupMapper.save(group);
             }
             experiment.setGroups(request.getGroups());
         }
         
-        Experiment saved = experimentRepository.save(experiment);
+        Experiment saved = getExperimentById(experiment.getId());
         cacheExperiment(saved);
+        
+        if (saved.getStatus() == Experiment.ExperimentStatus.RUNNING) {
+            configChangeNotifier.notifyConfigChange(saved.getServiceId());
+        }
         
         return saved;
     }
     
+    @Transactional
     public Experiment updateExperiment(Long id, ExperimentRequest request) {
-        Experiment experiment = experimentRepository.findById(id)
+        Experiment experiment = experimentMapper.findById(id)
             .orElseThrow(() -> new RuntimeException("实验不存在"));
+        
+        Long originalServiceId = experiment.getServiceId();
+        Experiment.ExperimentStatus originalStatus = experiment.getStatus();
         
         experiment.setExperimentName(request.getExperimentName());
         experiment.setVersion(request.getVersion());
@@ -71,26 +87,46 @@ public class ExperimentService {
         experiment.setAttributeValues(request.getAttributeValues());
         experiment.setServiceId(request.getServiceId());
         
+        experimentMapper.update(experiment);
+        
         if (request.getGroups() != null) {
-            experiment.getGroups().clear();
+            experimentGroupMapper.deleteByExperimentId(id);
             for (ExperimentGroup group : request.getGroups()) {
-                group.setExperiment(experiment);
-                experiment.getGroups().add(group);
+                group.setExperimentId(id);
+                experimentGroupMapper.save(group);
             }
+            experiment.setGroups(request.getGroups());
         }
         
-        Experiment saved = experimentRepository.save(experiment);
+        Experiment saved = getExperimentById(id);
         cacheExperiment(saved);
+        
+        if (originalStatus == Experiment.ExperimentStatus.RUNNING || 
+            saved.getStatus() == Experiment.ExperimentStatus.RUNNING) {
+            configChangeNotifier.notifyConfigChange(saved.getServiceId());
+            if (!originalServiceId.equals(saved.getServiceId())) {
+                configChangeNotifier.notifyConfigChange(originalServiceId);
+            }
+        }
         
         return saved;
     }
     
+    @Transactional
     public void deleteExperiment(Long id) {
-        Experiment experiment = experimentRepository.findById(id)
+        Experiment experiment = experimentMapper.findById(id)
             .orElseThrow(() -> new RuntimeException("实验不存在"));
         
-        experimentRepository.deleteById(id);
+        Long serviceId = experiment.getServiceId();
+        Experiment.ExperimentStatus status = experiment.getStatus();
+        
+        experimentGroupMapper.deleteByExperimentId(id);
+        experimentMapper.deleteById(id);
         evictExperimentCache(experiment);
+        
+        if (status == Experiment.ExperimentStatus.RUNNING) {
+            configChangeNotifier.notifyConfigChange(serviceId);
+        }
     }
     
     public Experiment getExperimentById(Long id) {
@@ -101,8 +137,11 @@ public class ExperimentService {
             return experiment;
         }
         
-        Experiment experiment = experimentRepository.findById(id)
+        Experiment experiment = experimentMapper.findById(id)
             .orElseThrow(() -> new RuntimeException("实验不存在"));
+        
+        List<ExperimentGroup> groups = experimentGroupMapper.findByExperimentId(id);
+        experiment.setGroups(groups);
         
         cacheExperiment(experiment);
         return experiment;
@@ -118,23 +157,43 @@ public class ExperimentService {
             return experiments;
         }
         
-        List<Experiment> experiments = experimentRepository.findByServiceId(serviceId);
+        List<Experiment> experiments = experimentMapper.findByServiceId(serviceId);
+        for (Experiment experiment : experiments) {
+            List<ExperimentGroup> groups = experimentGroupMapper.findByExperimentId(experiment.getId());
+            experiment.setGroups(groups);
+        }
+        
         cacheServiceExperiments(serviceId, experiments);
         
         return experiments;
     }
     
     public List<Experiment> getRunningExperimentsByService(Long serviceId) {
-        return experimentRepository.findByServiceIdAndStatus(serviceId, Experiment.ExperimentStatus.RUNNING);
+        List<Experiment> experiments = experimentMapper.findByServiceIdAndStatus(serviceId, Experiment.ExperimentStatus.RUNNING);
+        for (Experiment experiment : experiments) {
+            List<ExperimentGroup> groups = experimentGroupMapper.findByExperimentId(experiment.getId());
+            experiment.setGroups(groups);
+        }
+        return experiments;
     }
     
+    @Transactional
     public Experiment updateStatus(Long id, Experiment.ExperimentStatus status) {
-        Experiment experiment = experimentRepository.findById(id)
+        Experiment experiment = experimentMapper.findById(id)
             .orElseThrow(() -> new RuntimeException("实验不存在"));
         
+        Experiment.ExperimentStatus originalStatus = experiment.getStatus();
+        
         experiment.setStatus(status);
-        Experiment saved = experimentRepository.save(experiment);
+        experimentMapper.update(experiment);
+        
+        Experiment saved = getExperimentById(id);
         cacheExperiment(saved);
+        
+        if (originalStatus == Experiment.ExperimentStatus.RUNNING || 
+            saved.getStatus() == Experiment.ExperimentStatus.RUNNING) {
+            configChangeNotifier.notifyConfigChange(saved.getServiceId());
+        }
         
         return saved;
     }

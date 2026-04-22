@@ -4,7 +4,7 @@ import com.meetchance.abtest.dto.AuthResponse;
 import com.meetchance.abtest.dto.LoginRequest;
 import com.meetchance.abtest.dto.RegisterRequest;
 import com.meetchance.abtest.entity.User;
-import com.meetchance.abtest.repository.UserRepository;
+import com.meetchance.abtest.mapper.UserMapper;
 import com.meetchance.abtest.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,14 +17,14 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthService {
     
-    private final UserRepository userRepository;
+    private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsService userDetailsService;
     
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
+        if (userMapper.existsByUsername(request.getUsername())) {
             throw new RuntimeException("用户名已存在");
         }
         
@@ -33,7 +33,7 @@ public class AuthService {
             email = null;
         }
         
-        if (email != null && userRepository.existsByEmail(email)) {
+        if (email != null && userMapper.existsByEmail(email)) {
             throw new RuntimeException("邮箱已被使用");
         }
         
@@ -43,7 +43,7 @@ public class AuthService {
         user.setEmail(email);
         user.setRole("USER");
         
-        userRepository.save(user);
+        userMapper.save(user);
         
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         String token = jwtService.generateToken(userDetails);
@@ -59,7 +59,7 @@ public class AuthService {
             )
         );
         
-        User user = userRepository.findByUsername(request.getUsername())
+        User user = userMapper.findByUsername(request.getUsername())
             .orElseThrow(() -> new RuntimeException("用户不存在"));
         
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
@@ -69,7 +69,7 @@ public class AuthService {
     }
     
     public User getCurrentUser(String username) {
-        return userRepository.findByUsername(username)
+        return userMapper.findByUsername(username)
             .orElseThrow(() -> new RuntimeException("用户不存在"));
     }
 }
