@@ -3,9 +3,12 @@ package com.meetchance.abtest.service;
 import com.meetchance.abtest.dto.ExperimentRequest;
 import com.meetchance.abtest.entity.Experiment;
 import com.meetchance.abtest.entity.ExperimentGroup;
+import com.meetchance.abtest.entity.ExperimentRule;
+import com.meetchance.abtest.entity.ReturnValue;
 import com.meetchance.abtest.entity.User;
 import com.meetchance.abtest.mapper.ExperimentGroupMapper;
 import com.meetchance.abtest.mapper.ExperimentMapper;
+import com.meetchance.abtest.mapper.ExperimentRuleMapper;
 import com.meetchance.abtest.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -21,9 +25,11 @@ public class ExperimentService {
     
     private final ExperimentMapper experimentMapper;
     private final ExperimentGroupMapper experimentGroupMapper;
+    private final ExperimentRuleMapper experimentRuleMapper;
     private final UserMapper userMapper;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ConfigChangeNotifier configChangeNotifier;
+    private final RuleMatchService ruleMatchService;
     
     private static final String EXPERIMENT_CACHE_PREFIX = "experiment:";
     private static final String SERVICE_EXPERIMENTS_CACHE_PREFIX = "service:experiments:";
@@ -46,6 +52,9 @@ public class ExperimentService {
         experiment.setServiceId(request.getServiceId());
         experiment.setStatus(Experiment.ExperimentStatus.DRAFT);
         experiment.setCreatedBy(user.getId());
+        experiment.setReturnValueType(request.getReturnValueType());
+        experiment.setDefaultValue(request.getDefaultValue());
+        experiment.toJson();
         
         experimentMapper.save(experiment);
         
@@ -54,7 +63,14 @@ public class ExperimentService {
                 group.setExperimentId(experiment.getId());
                 experimentGroupMapper.save(group);
             }
-            experiment.setGroups(request.getGroups());
+        }
+        
+        if (request.getRules() != null) {
+            for (ExperimentRule rule : request.getRules()) {
+                rule.setExperimentId(experiment.getId());
+                rule.toJson();
+                experimentRuleMapper.save(rule);
+            }
         }
         
         Experiment saved = getExperimentById(experiment.getId());
@@ -86,6 +102,13 @@ public class ExperimentService {
         experiment.setUserAttribute(request.getUserAttribute());
         experiment.setAttributeValues(request.getAttributeValues());
         experiment.setServiceId(request.getServiceId());
+        if (request.getReturnValueType() != null) {
+            experiment.setReturnValueType(request.getReturnValueType());
+        }
+        if (request.getDefaultValue() != null) {
+            experiment.setDefaultValue(request.getDefaultValue());
+        }
+        experiment.toJson();
         
         experimentMapper.update(experiment);
         
@@ -95,7 +118,15 @@ public class ExperimentService {
                 group.setExperimentId(id);
                 experimentGroupMapper.save(group);
             }
-            experiment.setGroups(request.getGroups());
+        }
+        
+        if (request.getRules() != null) {
+            experimentRuleMapper.deleteByExperimentId(id);
+            for (ExperimentRule rule : request.getRules()) {
+                rule.setExperimentId(id);
+                rule.toJson();
+                experimentRuleMapper.save(rule);
+            }
         }
         
         Experiment saved = getExperimentById(id);
@@ -120,6 +151,7 @@ public class ExperimentService {
         Long serviceId = experiment.getServiceId();
         Experiment.ExperimentStatus status = experiment.getStatus();
         
+        experimentRuleMapper.deleteByExperimentId(id);
         experimentGroupMapper.deleteByExperimentId(id);
         experimentMapper.deleteById(id);
         evictExperimentCache(experiment);
@@ -143,6 +175,13 @@ public class ExperimentService {
         List<ExperimentGroup> groups = experimentGroupMapper.findByExperimentId(id);
         experiment.setGroups(groups);
         
+        List<ExperimentRule> rules = experimentRuleMapper.findByExperimentId(id);
+        for (ExperimentRule rule : rules) {
+            rule.parseJson();
+        }
+        experiment.setRules(rules);
+        experiment.parseJson();
+        
         cacheExperiment(experiment);
         return experiment;
     }
@@ -161,6 +200,13 @@ public class ExperimentService {
         for (Experiment experiment : experiments) {
             List<ExperimentGroup> groups = experimentGroupMapper.findByExperimentId(experiment.getId());
             experiment.setGroups(groups);
+            
+            List<ExperimentRule> rules = experimentRuleMapper.findByExperimentId(experiment.getId());
+            for (ExperimentRule rule : rules) {
+                rule.parseJson();
+            }
+            experiment.setRules(rules);
+            experiment.parseJson();
         }
         
         cacheServiceExperiments(serviceId, experiments);
@@ -173,6 +219,13 @@ public class ExperimentService {
         for (Experiment experiment : experiments) {
             List<ExperimentGroup> groups = experimentGroupMapper.findByExperimentId(experiment.getId());
             experiment.setGroups(groups);
+            
+            List<ExperimentRule> rules = experimentRuleMapper.findByExperimentId(experiment.getId());
+            for (ExperimentRule rule : rules) {
+                rule.parseJson();
+            }
+            experiment.setRules(rules);
+            experiment.parseJson();
         }
         return experiments;
     }
@@ -242,6 +295,25 @@ public class ExperimentService {
         }
         
         return groups.get(0);
+    }
+    
+    public String evaluateExperiment(Experiment experiment, Map<String, Object> userAttributes) {
+        if (experiment == null) {
+            return null;
+        }
+        
+        if (experiment.getRules() != null && !experiment.getRules().isEmpty()) {
+            ExperimentRule matchedRule = ruleMatchService.matchRule(experiment.getRules(), userAttributes);
+            if (matchedRule != null && matchedRule.getReturnValue() != null) {
+                return ruleMatchService.resolveReturnValue(matchedRule.getReturnValue());
+            }
+        }
+        
+        if (experiment.getDefaultValue() != null) {
+            return ruleMatchService.resolveReturnValue(experiment.getDefaultValue());
+        }
+        
+        return null;
     }
     
     private void cacheExperiment(Experiment experiment) {

@@ -1,10 +1,14 @@
 package com.meetchance.abtest.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
+@Slf4j
 public class Experiment {
     private Long id;
     private String experimentName;
@@ -21,6 +25,45 @@ public class Experiment {
     private Long createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    
+    private ReturnValueType returnValueType;
+    private String defaultValueJson;
+    private List<ExperimentRule> rules;
+    
+    @JsonIgnore
+    private ReturnValue defaultValue;
+    
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    
+    public void parseJson() {
+        try {
+            if (defaultValueJson != null) {
+                this.defaultValue = objectMapper.readValue(defaultValueJson, ReturnValue.class);
+            }
+            if (rules != null) {
+                for (ExperimentRule rule : rules) {
+                    rule.parseJson();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse JSON for experiment: {}", id, e);
+        }
+    }
+    
+    public void toJson() {
+        try {
+            if (defaultValue != null) {
+                this.defaultValueJson = objectMapper.writeValueAsString(defaultValue);
+            }
+            if (rules != null) {
+                for (ExperimentRule rule : rules) {
+                    rule.toJson();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to convert to JSON for experiment: {}", id, e);
+        }
+    }
     
     public enum SplitStrategy {
         PERCENTAGE,

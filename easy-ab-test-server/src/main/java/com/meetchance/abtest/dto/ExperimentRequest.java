@@ -2,6 +2,9 @@ package com.meetchance.abtest.dto;
 
 import com.meetchance.abtest.entity.Experiment;
 import com.meetchance.abtest.entity.ExperimentGroup;
+import com.meetchance.abtest.entity.ExperimentRule;
+import com.meetchance.abtest.entity.ReturnValue;
+import com.meetchance.abtest.entity.ReturnValueType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -28,4 +31,8 @@ public class ExperimentRequest {
     
     @NotNull(message = "关联服务不能为空")
     private Long serviceId;
+    
+    private ReturnValueType returnValueType;
+    private List<ExperimentRule> rules;
+    private ReturnValue defaultValue;
 }
