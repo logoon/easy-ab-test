@@ -28,16 +28,18 @@ public interface ExperimentMapper {
     
     @Insert("INSERT INTO experiments (experiment_name, version, effective_time, expire_time, " +
             "split_strategy, percentage, user_attribute, attribute_values, service_id, status, " +
-            "created_by, created_at, updated_at) VALUES (#{experimentName}, #{version}, #{effectiveTime}, " +
+            "return_value_type, default_value_json, created_by, created_at, updated_at) " +
+            "VALUES (#{experimentName}, #{version}, #{effectiveTime}, " +
             "#{expireTime}, #{splitStrategy}, #{percentage}, #{userAttribute}, #{attributeValues}, " +
-            "#{serviceId}, #{status}, #{createdBy}, NOW(), NOW())")
+            "#{serviceId}, #{status}, #{returnValueType}, #{defaultValueJson}, #{createdBy}, NOW(), NOW())")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int save(Experiment experiment);
     
     @Update("UPDATE experiments SET experiment_name = #{experimentName}, version = #{version}, " +
             "effective_time = #{effectiveTime}, expire_time = #{expireTime}, split_strategy = #{splitStrategy}, " +
             "percentage = #{percentage}, user_attribute = #{userAttribute}, attribute_values = #{attributeValues}, " +
-            "service_id = #{serviceId}, status = #{status}, updated_at = NOW() WHERE id = #{id}")
+            "service_id = #{serviceId}, status = #{status}, return_value_type = #{returnValueType}, " +
+            "default_value_json = #{defaultValueJson}, updated_at = NOW() WHERE id = #{id}")
     int update(Experiment experiment);
     
     @Delete("DELETE FROM experiments WHERE id = #{id}")
