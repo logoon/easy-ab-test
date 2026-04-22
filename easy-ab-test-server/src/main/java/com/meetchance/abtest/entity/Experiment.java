@@ -19,7 +19,6 @@ public class Experiment {
     private Integer percentage;
     private String userAttribute;
     private String attributeValues;
-    private List<ExperimentGroup> groups;
     private Long serviceId;
     private ExperimentStatus status = ExperimentStatus.DRAFT;
     private Long createdBy;
