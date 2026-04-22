@@ -1,6 +1,6 @@
 package com.meetchance.abtest.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
@@ -13,13 +13,14 @@ public class ExperimentRule {
     private Long id;
     private Long experimentId;
     private Integer priority;
+    
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private String conditionsJson;
+    
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private String returnValueJson;
     
-    @JsonIgnore
     private List<RuleCondition> conditions;
-    
-    @JsonIgnore
     private ReturnValue returnValue;
     
     private static final ObjectMapper objectMapper = new ObjectMapper();

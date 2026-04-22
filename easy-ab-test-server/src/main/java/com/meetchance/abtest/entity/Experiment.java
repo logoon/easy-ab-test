@@ -1,6 +1,6 @@
 package com.meetchance.abtest.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -27,10 +27,11 @@ public class Experiment {
     private LocalDateTime updatedAt;
     
     private ReturnValueType returnValueType;
-    private String defaultValueJson;
-    private List<ExperimentRule> rules;
     
-    @JsonIgnore
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String defaultValueJson;
+    
+    private List<ExperimentRule> rules;
     private ReturnValue defaultValue;
     
     private static final ObjectMapper objectMapper = new ObjectMapper();
