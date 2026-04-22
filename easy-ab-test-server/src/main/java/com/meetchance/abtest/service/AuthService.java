@@ -28,15 +28,19 @@ public class AuthService {
             throw new RuntimeException("用户名已存在");
         }
         
-        if (request.getEmail() != null && !request.getEmail().isEmpty() 
-            && userRepository.existsByEmail(request.getEmail())) {
+        String email = request.getEmail();
+        if (email != null && email.trim().isEmpty()) {
+            email = null;
+        }
+        
+        if (email != null && userRepository.existsByEmail(email)) {
             throw new RuntimeException("邮箱已被使用");
         }
         
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setEmail(request.getEmail());
+        user.setEmail(email);
         user.setRole("USER");
         
         userRepository.save(user);
