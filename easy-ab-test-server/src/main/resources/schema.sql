@@ -57,6 +57,8 @@ CREATE TABLE experiments (
     attribute_values VARCHAR(500) COMMENT '属性值列表（逗号分隔）',
     service_id BIGINT NOT NULL COMMENT '关联服务ID',
     status VARCHAR(20) DEFAULT 'DRAFT' COMMENT '状态：DRAFT-草稿, RUNNING-运行中, PAUSED-已暂停, FINISHED-已结束',
+    return_value_type VARCHAR(20) COMMENT '返回值类型：STRING, INT, BOOLEAN, DECIMAL, JSON',
+    default_value_json TEXT COMMENT '默认返回值JSON',
     created_by BIGINT COMMENT '创建人ID',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -66,19 +68,15 @@ CREATE TABLE experiments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实验表';
 
 -- ============================================
--- 4. 实验组表
+-- 4. 实验规则表
 -- ============================================
-DROP TABLE IF EXISTS experiment_groups;
-CREATE TABLE experiment_groups (
+DROP TABLE IF EXISTS experiment_rules;
+CREATE TABLE experiment_rules (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     experiment_id BIGINT NOT NULL COMMENT '实验ID',
-    group_name VARCHAR(100) NOT NULL COMMENT '组名称',
-    group_code VARCHAR(50) NOT NULL COMMENT '组编码',
-    weight INT DEFAULT 1 COMMENT '权重',
-    config TEXT COMMENT '配置JSON',
-    is_control TINYINT(1) DEFAULT 0 COMMENT '是否为对照组：0-否, 1-是',
+    priority INT DEFAULT 0 COMMENT '优先级（数字越小优先级越高）',
+    conditions_json TEXT COMMENT '规则条件JSON',
+    return_value_json TEXT COMMENT '返回值定义JSON',
     INDEX idx_experiment_id (experiment_id),
     FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实验组表';
-
-
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='实验规则表';

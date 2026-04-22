@@ -2,7 +2,6 @@ package com.meetchance.abtest.controller;
 
 import com.meetchance.abtest.dto.ExperimentRequest;
 import com.meetchance.abtest.entity.Experiment;
-import com.meetchance.abtest.entity.ExperimentGroup;
 import com.meetchance.abtest.service.ExperimentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -62,13 +61,5 @@ public class ExperimentController {
         @RequestParam Experiment.ExperimentStatus status
     ) {
         return ResponseEntity.ok(experimentService.updateStatus(id, status));
-    }
-    
-    @GetMapping("/{experimentId}/group")
-    public ResponseEntity<ExperimentGroup> getExperimentGroup(
-        @PathVariable Long experimentId,
-        @RequestParam String userId
-    ) {
-        return ResponseEntity.ok(experimentService.getExperimentGroup(experimentId, userId));
     }
 }

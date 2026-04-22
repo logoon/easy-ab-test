@@ -51,11 +51,3 @@ export function updateExperimentStatus(id, status) {
     params: { status }
   })
 }
-
-export function getExperimentGroup(experimentId, userId) {
-  return request({
-    url: `/experiments/${experimentId}/group`,
-    method: 'get',
-    params: { userId }
-  })
-}

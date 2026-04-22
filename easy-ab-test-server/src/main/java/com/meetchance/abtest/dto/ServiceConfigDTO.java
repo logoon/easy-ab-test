@@ -1,7 +1,6 @@
 package com.meetchance.abtest.dto;
 
 import com.meetchance.abtest.entity.Experiment;
-import com.meetchance.abtest.entity.ExperimentGroup;
 import com.meetchance.abtest.entity.ExperimentRule;
 import com.meetchance.abtest.entity.ReturnValue;
 import com.meetchance.abtest.entity.ReturnValueMode;
@@ -40,7 +39,6 @@ public class ServiceConfigDTO {
         private String userAttribute;
         private String attributeValues;
         private Experiment.ExperimentStatus status;
-        private List<GroupConfigDTO> groups;
         private ReturnValueType returnValueType;
         private List<RuleConfigDTO> rules;
         private ReturnValueConfigDTO defaultValue;
@@ -55,10 +53,6 @@ public class ServiceConfigDTO {
             dto.setUserAttribute(experiment.getUserAttribute());
             dto.setAttributeValues(experiment.getAttributeValues());
             dto.setStatus(experiment.getStatus());
-            dto.setGroups(experiment.getGroups() != null ? 
-                experiment.getGroups().stream()
-                    .map(GroupConfigDTO::fromEntity)
-                    .collect(Collectors.toList()) : null);
             dto.setReturnValueType(experiment.getReturnValueType());
             dto.setRules(experiment.getRules() != null ?
                 experiment.getRules().stream()
@@ -66,27 +60,6 @@ public class ServiceConfigDTO {
                     .collect(Collectors.toList()) : null);
             dto.setDefaultValue(experiment.getDefaultValue() != null ?
                 ReturnValueConfigDTO.fromEntity(experiment.getDefaultValue()) : null);
-            return dto;
-        }
-    }
-    
-    @Data
-    public static class GroupConfigDTO {
-        private Long groupId;
-        private String groupName;
-        private String groupCode;
-        private Integer weight;
-        private String config;
-        private Boolean isControl;
-        
-        public static GroupConfigDTO fromEntity(ExperimentGroup group) {
-            GroupConfigDTO dto = new GroupConfigDTO();
-            dto.setGroupId(group.getId());
-            dto.setGroupName(group.getGroupName());
-            dto.setGroupCode(group.getGroupCode());
-            dto.setWeight(group.getWeight());
-            dto.setConfig(group.getConfig());
-            dto.setIsControl(group.getIsControl());
             return dto;
         }
     }

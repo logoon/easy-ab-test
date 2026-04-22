@@ -1,7 +1,6 @@
 package com.meetchance.abtest.dto;
 
 import com.meetchance.abtest.entity.Experiment;
-import com.meetchance.abtest.entity.ExperimentGroup;
 import com.meetchance.abtest.entity.ExperimentRule;
 import com.meetchance.abtest.entity.ReturnValue;
 import com.meetchance.abtest.entity.ReturnValueType;
@@ -26,8 +25,6 @@ public class ExperimentRequest {
     private Integer percentage;
     private String userAttribute;
     private String attributeValues;
-    
-    private List<ExperimentGroup> groups;
     
     @NotNull(message = "关联服务不能为空")
     private Long serviceId;
