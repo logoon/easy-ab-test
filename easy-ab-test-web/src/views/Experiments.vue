@@ -26,6 +26,17 @@
     <el-table :data="experiments" v-loading="loading" stripe style="width: 100%">
       <el-table-column prop="experimentName" label="实验名称" min-width="180" />
       <el-table-column prop="version" label="版本" width="100" />
+      <el-table-column prop="returnValueType" label="返回值类型" width="120">
+        <template #default="{ row }">
+          <el-tag v-if="row.returnValueType" size="small">{{ getReturnValueTypeText(row.returnValueType) }}</el-tag>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="规则数" width="80">
+        <template #default="{ row }">
+          {{ row.rules ? row.rules.length : 0 }}
+        </template>
+      </el-table-column>
       <el-table-column prop="status" label="状态" width="120">
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.status)" class="status-tag">
@@ -89,7 +100,8 @@
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑实验' : '新建实验'"
-      width="800px"
+      width="900px"
+      :close-on-click-modal="false"
     >
       <el-form
         ref="formRef"
@@ -127,12 +139,23 @@
           </el-form-item>
         </div>
         
-        <el-form-item label="分流策略">
-          <el-radio-group v-model="form.splitStrategy">
-            <el-radio value="PERCENTAGE">按百分比分流</el-radio>
-            <el-radio value="USER_ATTRIBUTE">按用户属性分流</el-radio>
-          </el-radio-group>
-        </el-form-item>
+        <div class="form-item-row">
+          <el-form-item label="分流策略">
+            <el-radio-group v-model="form.splitStrategy">
+              <el-radio value="PERCENTAGE">按百分比分流</el-radio>
+              <el-radio value="USER_ATTRIBUTE">按用户属性分流</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="返回值类型">
+            <el-select v-model="form.returnValueType" placeholder="选择返回值类型" style="width: 180px;">
+              <el-option label="字符串" value="STRING" />
+              <el-option label="整数" value="INT" />
+              <el-option label="布尔值" value="BOOLEAN" />
+              <el-option label="小数" value="DECIMAL" />
+              <el-option label="JSON" value="JSON" />
+            </el-select>
+          </el-form-item>
+        </div>
         
         <el-form-item v-if="form.splitStrategy === 'PERCENTAGE'" label="分流百分比">
           <el-slider
@@ -222,6 +245,210 @@
             添加实验组
           </el-button>
         </el-form-item>
+        
+        <el-divider>规则配置</el-divider>
+        
+        <p style="color: #909399; margin-bottom: 15px; font-size: 13px;">
+          规则按优先级顺序匹配（数字越小优先级越高），匹配成功后返回对应的值；所有规则都不匹配时返回默认值。
+        </p>
+        
+        <div v-for="(rule, ruleIndex) in form.rules" :key="ruleIndex" class="rule-item">
+          <div class="rule-header">
+            <span class="rule-title">规则 {{ ruleIndex + 1 }}</span>
+            <div style="display: flex; align-items: center; gap: 15px;">
+              <span style="font-size: 13px; color: #909399;">
+                优先级: 
+                <el-input-number 
+                  v-model="rule.priority" 
+                  :min="1" 
+                  :max="100" 
+                  size="small"
+                  style="width: 80px; margin-left: 5px;"
+                />
+              </span>
+              <el-button
+                type="danger"
+                link
+                @click="form.rules.splice(ruleIndex, 1)"
+              >
+                <el-icon><Delete /></el-icon>
+                删除规则
+              </el-button>
+            </div>
+          </div>
+          
+          <div class="rule-conditions">
+            <div style="font-size: 13px; color: #606266; margin-bottom: 10px; font-weight: 500;">
+              条件配置（全部条件都满足时才匹配）：
+            </div>
+            <div v-for="(condition, condIndex) in rule.conditions" :key="condIndex" class="condition-row">
+              <el-input 
+                v-model="condition.fieldName" 
+                placeholder="字段名" 
+                style="width: 120px;"
+              />
+              <el-select 
+                v-model="condition.operator" 
+                placeholder="运算符" 
+                style="width: 100px;"
+              >
+                <el-option label="等于" value="EQ" />
+                <el-option label="不等于" value="NE" />
+                <el-option label="包含" value="IN" />
+                <el-option label="包含子串" value="CONTAINS" />
+                <el-option label="大于" value="GT" />
+                <el-option label="小于" value="LT" />
+                <el-option label="大于等于" value="GTE" />
+                <el-option label="小于等于" value="LTE" />
+              </el-select>
+              <template v-if="['IN'].includes(condition.operator)">
+                <div style="flex: 1; display: flex; align-items: center; gap: 5px;">
+                  <el-tag 
+                    v-for="(val, vIdx) in condition.values" 
+                    :key="vIdx"
+                    closable
+                    @close="condition.values.splice(vIdx, 1)"
+                    style="margin-right: 5px;"
+                  >
+                    {{ val }}
+                  </el-tag>
+                  <el-input
+                    v-model="newConditionValue[ruleIndex + '_' + condIndex]"
+                    placeholder="输入值后回车"
+                    size="small"
+                    style="width: 100px;"
+                    @keyup.enter="addConditionValue(ruleIndex, condIndex)"
+                  />
+                </div>
+              </template>
+              <template v-else>
+                <el-input 
+                  v-model="condition.value" 
+                  placeholder="值" 
+                  style="width: 150px;"
+                />
+              </template>
+              <el-button 
+                type="danger" 
+                link 
+                :disabled="rule.conditions.length <= 1"
+                @click="rule.conditions.splice(condIndex, 1)"
+              >
+                <el-icon><Minus /></el-icon>
+              </el-button>
+            </div>
+            <el-button type="primary" plain size="small" @click="addCondition(rule)">
+              <el-icon><Plus /></el-icon>
+              添加条件
+            </el-button>
+          </div>
+          
+          <div class="rule-return-value">
+            <div style="font-size: 13px; color: #606266; margin-bottom: 10px; font-weight: 500;">
+              命中后的返回值：
+            </div>
+            <el-radio-group v-model="rule.returnValue.mode" @change="(v) => onReturnValueModeChange(rule, v)">
+              <el-radio value="FIXED">固定值</el-radio>
+              <el-radio value="WEIGHTED">加权值</el-radio>
+            </el-radio-group>
+            
+            <template v-if="rule.returnValue.mode === 'FIXED'">
+              <el-input 
+                v-model="rule.returnValue.fixedValue" 
+                placeholder="返回值" 
+                style="width: 300px; margin-top: 10px;"
+              />
+            </template>
+            
+            <template v-else>
+              <div style="margin-top: 10px;">
+                <div v-for="(wv, wvIndex) in rule.returnValue.weightedValues" :key="wvIndex" class="weighted-row">
+                  <el-input 
+                    v-model="wv.weight" 
+                    placeholder="权重(如: 0.7)" 
+                    style="width: 100px;"
+                  />
+                  <span style="margin: 0 5px;">→</span>
+                  <el-input 
+                    v-model="wv.value" 
+                    placeholder="值" 
+                    style="width: 150px;"
+                  />
+                  <el-button 
+                    type="danger" 
+                    link 
+                    :disabled="rule.returnValue.weightedValues.length <= 1"
+                    @click="rule.returnValue.weightedValues.splice(wvIndex, 1)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </div>
+                <el-button type="primary" plain size="small" @click="addWeightedValue(rule.returnValue)">
+                  <el-icon><Plus /></el-icon>
+                  添加加权值
+                </el-button>
+              </div>
+            </template>
+          </div>
+        </div>
+        
+        <el-form-item>
+          <el-button type="primary" plain @click="addRule">
+            <el-icon><Plus /></el-icon>
+            添加规则
+          </el-button>
+        </el-form-item>
+        
+        <el-divider>默认返回值</el-divider>
+        
+        <p style="color: #909399; margin-bottom: 15px; font-size: 13px;">
+          当所有规则都不匹配时，返回此默认值。
+        </p>
+        
+        <el-radio-group v-model="form.defaultValue.mode" @change="(v) => onDefaultValueModeChange(v)">
+          <el-radio value="FIXED">固定值</el-radio>
+          <el-radio value="WEIGHTED">加权值</el-radio>
+        </el-radio-group>
+        
+        <template v-if="form.defaultValue.mode === 'FIXED'">
+          <el-form-item label="默认值" style="margin-top: 15px;">
+            <el-input 
+              v-model="form.defaultValue.fixedValue" 
+              placeholder="默认返回值" 
+              style="width: 300px;"
+            />
+          </el-form-item>
+        </template>
+        
+        <template v-else>
+          <div style="margin-top: 15px;">
+            <div v-for="(wv, wvIndex) in form.defaultValue.weightedValues" :key="wvIndex" class="weighted-row">
+              <el-input 
+                v-model="wv.weight" 
+                placeholder="权重(如: 0.7)" 
+                style="width: 100px;"
+              />
+              <span style="margin: 0 5px;">→</span>
+              <el-input 
+                v-model="wv.value" 
+                placeholder="值" 
+                style="width: 150px;"
+              />
+              <el-button 
+                type="danger" 
+                link 
+                :disabled="form.defaultValue.weightedValues.length <= 1"
+                @click="form.defaultValue.weightedValues.splice(wvIndex, 1)"
+              >
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+            <el-button type="primary" plain size="small" @click="addWeightedValue(form.defaultValue)">
+              <el-icon><Plus /></el-icon>
+              添加加权值
+            </el-button>
+          </div>
+        </template>
       </el-form>
       
       <template #footer>
@@ -235,7 +462,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getServices } from '@/api/service'
 import {
@@ -255,6 +482,55 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
 const editId = ref(null)
+const newConditionValue = reactive({})
+
+const createEmptyGroup = () => ({
+  groupName: '',
+  groupCode: '',
+  weight: 1,
+  config: '{}',
+  isControl: false
+})
+
+const createEmptyCondition = () => ({
+  fieldName: '',
+  operator: 'EQ',
+  value: '',
+  values: []
+})
+
+const createEmptyReturnValue = () => ({
+  mode: 'FIXED',
+  fixedValue: '',
+  weightedValues: [
+    { weight: '0.5', value: '' },
+    { weight: '0.5', value: '' }
+  ]
+})
+
+const createEmptyRule = (priority) => ({
+  priority: priority,
+  conditions: [createEmptyCondition()],
+  returnValue: createEmptyReturnValue()
+})
+
+const resetForm = () => {
+  form.experimentName = ''
+  form.version = 'v1.0.0'
+  form.effectiveTime = null
+  form.expireTime = null
+  form.splitStrategy = 'PERCENTAGE'
+  form.percentage = 100
+  form.userAttribute = ''
+  form.attributeValues = ''
+  form.returnValueType = null
+  form.groups = [
+    { groupName: '对照组', groupCode: 'A', weight: 1, config: '{}', isControl: true },
+    { groupName: '实验组', groupCode: 'B', weight: 1, config: '{}', isControl: false }
+  ]
+  form.rules = []
+  form.defaultValue = createEmptyReturnValue()
+}
 
 const form = reactive({
   experimentName: '',
@@ -265,10 +541,13 @@ const form = reactive({
   percentage: 100,
   userAttribute: '',
   attributeValues: '',
+  returnValueType: null,
   groups: [
     { groupName: '对照组', groupCode: 'A', weight: 1, config: '{}', isControl: true },
     { groupName: '实验组', groupCode: 'B', weight: 1, config: '{}', isControl: false }
-  ]
+  ],
+  rules: [],
+  defaultValue: createEmptyReturnValue()
 })
 
 const rules = {
@@ -305,6 +584,17 @@ const getStatusText = (status) => {
   return map[status] || status
 }
 
+const getReturnValueTypeText = (type) => {
+  const map = {
+    STRING: '字符串',
+    INT: '整数',
+    BOOLEAN: '布尔值',
+    DECIMAL: '小数',
+    JSON: 'JSON'
+  }
+  return map[type] || type
+}
+
 const fetchServices = async () => {
   try {
     services.value = await getServices()
@@ -339,22 +629,69 @@ const addGroup = () => {
   })
 }
 
+const addRule = () => {
+  const nextPriority = form.rules.length > 0 
+    ? Math.max(...form.rules.map(r => r.priority)) + 1 
+    : 1
+  form.rules.push(createEmptyRule(nextPriority))
+}
+
+const addCondition = (rule) => {
+  rule.conditions.push(createEmptyCondition())
+}
+
+const addConditionValue = (ruleIndex, condIndex) => {
+  const key = ruleIndex + '_' + condIndex
+  const value = newConditionValue[key]
+  if (value && value.trim()) {
+    const rule = form.rules[ruleIndex]
+    const condition = rule.conditions[condIndex]
+    if (!condition.values) {
+      condition.values = []
+    }
+    if (!condition.values.includes(value.trim())) {
+      condition.values.push(value.trim())
+    }
+    newConditionValue[key] = ''
+  }
+}
+
+const addWeightedValue = (returnValue) => {
+  returnValue.weightedValues.push({ weight: '', value: '' })
+}
+
+const onReturnValueModeChange = (rule, mode) => {
+  if (mode === 'WEIGHTED') {
+    rule.returnValue.weightedValues = [
+      { weight: '0.5', value: '' },
+      { weight: '0.5', value: '' }
+    ]
+  }
+}
+
+const onDefaultValueModeChange = (mode) => {
+  if (mode === 'WEIGHTED') {
+    form.defaultValue.weightedValues = [
+      { weight: '0.5', value: '' },
+      { weight: '0.5', value: '' }
+    ]
+  }
+}
+
 const handleCreate = () => {
   isEdit.value = false
   editId.value = null
-  form.experimentName = ''
-  form.version = 'v1.0.0'
-  form.effectiveTime = null
-  form.expireTime = null
-  form.splitStrategy = 'PERCENTAGE'
-  form.percentage = 100
-  form.userAttribute = ''
-  form.attributeValues = ''
-  form.groups = [
-    { groupName: '对照组', groupCode: 'A', weight: 1, config: '{}', isControl: true },
-    { groupName: '实验组', groupCode: 'B', weight: 1, config: '{}', isControl: false }
-  ]
+  resetForm()
   dialogVisible.value = true
+}
+
+const parseRuleFromData = (ruleData) => {
+  if (!ruleData) return null
+  return {
+    priority: ruleData.priority || 1,
+    conditions: Array.isArray(ruleData.conditions) ? ruleData.conditions : [createEmptyCondition()],
+    returnValue: ruleData.returnValue || createEmptyReturnValue()
+  }
 }
 
 const handleEdit = (row) => {
@@ -368,7 +705,24 @@ const handleEdit = (row) => {
   form.percentage = row.percentage || 100
   form.userAttribute = row.userAttribute || ''
   form.attributeValues = row.attributeValues || ''
+  form.returnValueType = row.returnValueType || null
   form.groups = JSON.parse(JSON.stringify(row.groups || []))
+  
+  form.rules = row.rules 
+    ? row.rules.map(r => parseRuleFromData(r)) 
+    : []
+  
+  form.defaultValue = row.defaultValue 
+    ? JSON.parse(JSON.stringify(row.defaultValue)) 
+    : createEmptyReturnValue()
+  
+  if (!form.defaultValue.weightedValues || form.defaultValue.weightedValues.length === 0) {
+    form.defaultValue.weightedValues = [
+      { weight: '0.5', value: '' },
+      { weight: '0.5', value: '' }
+    ]
+  }
+  
   dialogVisible.value = true
 }
 
@@ -426,7 +780,10 @@ const handleSubmit = async () => {
       userAttribute: form.userAttribute,
       attributeValues: form.attributeValues,
       groups: form.groups,
-      serviceId: selectedServiceId.value
+      serviceId: selectedServiceId.value,
+      returnValueType: form.returnValueType,
+      rules: form.rules,
+      defaultValue: form.defaultValue
     }
     
     if (isEdit.value) {
@@ -449,3 +806,110 @@ onMounted(() => {
   fetchServices()
 })
 </script>
+
+<style scoped>
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.form-item-row {
+  display: flex;
+  gap: 20px;
+}
+
+.form-item-row .el-form-item {
+  flex: 1;
+  margin-bottom: 18px;
+}
+
+.group-item {
+  background: #f9fafc;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid #e4e7ed;
+}
+
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #dcdfe6;
+}
+
+.group-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+
+.config-textarea {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 13px;
+}
+
+.rule-item {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e4e7ed;
+}
+
+.rule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.rule-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #409eff;
+}
+
+.rule-conditions {
+  margin-bottom: 20px;
+}
+
+.condition-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.rule-return-value {
+  padding: 12px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.weighted-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.status-tag {
+  margin-right: 4px;
+}
+</style>
