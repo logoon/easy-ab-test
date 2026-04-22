@@ -1,0 +1,13 @@
+-- ============================================
+-- 测试数据（可选）
+-- ============================================
+-- 注意：
+-- 1. 由于BCrypt每次加密结果不同，建议直接通过注册页面创建用户
+-- 2. 此文件中的数据仅作为示例，实际使用时请通过前端注册
+
+-- 测试服务数据（可选）
+-- INSERT INTO services (service_name, service_code, description, created_by) VALUES 
+-- ('首页推荐服务', 'home_recommend', '首页内容推荐相关实验', 1),
+-- ('搜索服务', 'search_service', '搜索功能相关实验', 1),
+-- ('支付服务', 'payment_service', '支付流程相关实验', 1)
+-- ON DUPLICATE KEY UPDATE service_name = VALUES(service_name);
