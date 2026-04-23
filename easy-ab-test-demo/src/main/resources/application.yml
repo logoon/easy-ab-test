@@ -1,0 +1,12 @@
+server:
+  port: 8081
+
+abtest:
+  enabled: true
+  sync-mode: HTTP
+  service-code: demo-service
+  server-url: http://localhost:8081
+  http:
+    sync-interval-seconds: 5
+    connect-timeout: 3000
+    read-timeout: 5000
