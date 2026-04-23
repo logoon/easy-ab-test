@@ -3,9 +3,11 @@ package com.meetchance.abtest.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meetchance.abtest.dto.ServiceConfigDTO;
 import com.meetchance.abtest.entity.Experiment;
+import com.meetchance.abtest.entity.ExperimentRule;
 import com.meetchance.abtest.entity.ServiceEntity;
-import com.meetchance.abtest.service.ExperimentService;
-import com.meetchance.abtest.service.ServiceService;
+import com.meetchance.abtest.mapper.ExperimentMapper;
+import com.meetchance.abtest.mapper.ExperimentRuleMapper;
+import com.meetchance.abtest.mapper.ServiceMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -27,8 +29,9 @@ public class ConfigWebSocketHandler extends TextWebSocketHandler {
     private final Map<String, Map<String, WebSocketSession>> serviceSessions = new ConcurrentHashMap<>();
     private final Map<String, String> sessionToServiceCode = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
-    private final ServiceService serviceService;
-    private final ExperimentService experimentService;
+    private final ServiceMapper serviceMapper;
+    private final ExperimentMapper experimentMapper;
+    private final ExperimentRuleMapper experimentRuleMapper;
     
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -71,10 +74,23 @@ public class ConfigWebSocketHandler extends TextWebSocketHandler {
     
     private void pushInitialConfig(WebSocketSession session, String serviceCode) {
         try {
-            ServiceEntity service = serviceService.getServiceByCode(serviceCode);
-            List<Experiment> experiments = experimentService.getRunningExperimentsByService(service.getId());
-            ServiceConfigDTO config = ServiceConfigDTO.fromEntities(service, experiments);
+            ServiceEntity service = serviceMapper.findByServiceCode(serviceCode).orElse(null);
+            if (service == null) {
+                log.warn("Service not found for serviceCode: {}", serviceCode);
+                return;
+            }
             
+            List<Experiment> experiments = experimentMapper.findByServiceIdAndStatus(service.getId(), Experiment.ExperimentStatus.RUNNING);
+            for (Experiment experiment : experiments) {
+                List<ExperimentRule> rules = experimentRuleMapper.findByExperimentId(experiment.getId());
+                for (ExperimentRule rule : rules) {
+                    rule.parseJson();
+                }
+                experiment.setRules(rules);
+                experiment.parseJson();
+            }
+            
+            ServiceConfigDTO config = ServiceConfigDTO.fromEntities(service, experiments);
             String message = objectMapper.writeValueAsString(config);
             TextMessage textMessage = new TextMessage(message);
             
