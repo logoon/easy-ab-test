@@ -1,8 +1,12 @@
 package com.meetchance.abtest.starter.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 public enum ReturnValueType {
     STRING,
-    NUMBER,
+    @JsonAlias("NUMBER")
+    INT,
     BOOLEAN,
+    DECIMAL,
     JSON
 }

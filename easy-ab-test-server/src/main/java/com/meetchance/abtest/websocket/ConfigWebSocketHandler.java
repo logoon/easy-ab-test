@@ -2,6 +2,10 @@ package com.meetchance.abtest.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meetchance.abtest.dto.ServiceConfigDTO;
+import com.meetchance.abtest.entity.Experiment;
+import com.meetchance.abtest.entity.ServiceEntity;
+import com.meetchance.abtest.service.ExperimentService;
+import com.meetchance.abtest.service.ServiceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -10,6 +14,8 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.io.IOException;
+import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,21 +24,85 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class ConfigWebSocketHandler extends TextWebSocketHandler {
     
-    private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, WebSocketSession>> serviceSessions = new ConcurrentHashMap<>();
+    private final Map<String, String> sessionToServiceCode = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
+    private final ServiceService serviceService;
+    private final ExperimentService experimentService;
     
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String sessionId = session.getId();
-        sessions.put(sessionId, session);
-        log.info("WebSocket connection established: {}", sessionId);
+        String serviceCode = extractServiceCode(session);
+        
+        if (serviceCode == null || serviceCode.isEmpty()) {
+            log.warn("WebSocket connection rejected: serviceCode not provided, session: {}", sessionId);
+            session.close(CloseStatus.BAD_DATA.withReason("serviceCode is required"));
+            return;
+        }
+        
+        sessionToServiceCode.put(sessionId, serviceCode);
+        serviceSessions.computeIfAbsent(serviceCode, k -> new ConcurrentHashMap<>()).put(sessionId, session);
+        log.info("WebSocket connection established: session={}, serviceCode={}", sessionId, serviceCode);
+        
+        pushInitialConfig(session, serviceCode);
+    }
+    
+    private String extractServiceCode(WebSocketSession session) {
+        URI uri = session.getUri();
+        if (uri == null) {
+            return null;
+        }
+        
+        String query = uri.getQuery();
+        if (query == null) {
+            return null;
+        }
+        
+        for (String param : query.split("&")) {
+            String[] keyValue = param.split("=", 2);
+            if (keyValue.length == 2 && "serviceCode".equals(keyValue[0])) {
+                return keyValue[1];
+            }
+        }
+        
+        return null;
+    }
+    
+    private void pushInitialConfig(WebSocketSession session, String serviceCode) {
+        try {
+            ServiceEntity service = serviceService.getServiceByCode(serviceCode);
+            List<Experiment> experiments = experimentService.getRunningExperimentsByService(service.getId());
+            ServiceConfigDTO config = ServiceConfigDTO.fromEntities(service, experiments);
+            
+            String message = objectMapper.writeValueAsString(config);
+            TextMessage textMessage = new TextMessage(message);
+            
+            if (session.isOpen()) {
+                session.sendMessage(textMessage);
+                log.info("Pushed initial config to session: {}, serviceCode: {}", session.getId(), serviceCode);
+            }
+        } catch (Exception e) {
+            log.error("Failed to push initial config for serviceCode: {}", serviceCode, e);
+        }
     }
     
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String sessionId = session.getId();
-        sessions.remove(sessionId);
-        log.info("WebSocket connection closed: {}", sessionId);
+        String serviceCode = sessionToServiceCode.remove(sessionId);
+        
+        if (serviceCode != null) {
+            Map<String, WebSocketSession> sessions = serviceSessions.get(serviceCode);
+            if (sessions != null) {
+                sessions.remove(sessionId);
+                if (sessions.isEmpty()) {
+                    serviceSessions.remove(serviceCode);
+                }
+            }
+        }
+        
+        log.info("WebSocket connection closed: session={}, serviceCode={}, status={}", sessionId, serviceCode, status);
     }
     
     @Override
@@ -41,6 +111,19 @@ public class ConfigWebSocketHandler extends TextWebSocketHandler {
     }
     
     public void broadcastConfigChange(ServiceConfigDTO config) {
+        if (config == null || config.getServiceCode() == null) {
+            log.warn("Cannot broadcast config: config or serviceCode is null");
+            return;
+        }
+        
+        String serviceCode = config.getServiceCode();
+        Map<String, WebSocketSession> sessions = serviceSessions.get(serviceCode);
+        
+        if (sessions == null || sessions.isEmpty()) {
+            log.debug("No active sessions for serviceCode: {}", serviceCode);
+            return;
+        }
+        
         try {
             String message = objectMapper.writeValueAsString(config);
             TextMessage textMessage = new TextMessage(message);
@@ -49,14 +132,14 @@ public class ConfigWebSocketHandler extends TextWebSocketHandler {
                 if (session.isOpen()) {
                     try {
                         session.sendMessage(textMessage);
-                        log.info("Broadcast config change to session: {}", session.getId());
+                        log.info("Broadcast config change to session: {}, serviceCode: {}", session.getId(), serviceCode);
                     } catch (IOException e) {
                         log.error("Failed to send message to session: {}", session.getId(), e);
                     }
                 }
             });
         } catch (Exception e) {
-            log.error("Failed to broadcast config change", e);
+            log.error("Failed to broadcast config change for serviceCode: {}", serviceCode, e);
         }
     }
 }
