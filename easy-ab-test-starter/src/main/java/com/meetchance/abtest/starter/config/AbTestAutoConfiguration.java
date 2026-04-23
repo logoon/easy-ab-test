@@ -49,18 +49,15 @@ public class AbTestAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "abtest", name = "sync-mode", havingValue = "HTTP", matchIfMissing = true)
-    public ConfigSynchronizer httpConfigSynchronizer(ConfigStore configStore) {
-        log.info("Creating HTTP config synchronizer");
+    public ConfigSynchronizer configSynchronizer(ConfigStore configStore) {
+        AbTestProperties.SyncMode mode = properties.getSyncMode();
+        log.info("Creating {} config synchronizer", mode);
+        
+        if (mode == AbTestProperties.SyncMode.WEBSOCKET) {
+            return new WebSocketConfigSynchronizer(properties, configStore);
+        }
+        
         return new HttpConfigSynchronizer(properties, configStore);
-    }
-    
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "abtest", name = "sync-mode", havingValue = "WEBSOCKET")
-    public ConfigSynchronizer webSocketConfigSynchronizer(ConfigStore configStore) {
-        log.info("Creating WebSocket config synchronizer");
-        return new WebSocketConfigSynchronizer(properties, configStore);
     }
     
     @Bean

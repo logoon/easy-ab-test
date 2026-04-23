@@ -90,6 +90,26 @@ public class WebSocketConfigSynchronizer implements ConfigSynchronizer {
         return running.get();
     }
     
+    private String convertToWebSocketUrl(String serverUrl) {
+        if (serverUrl == null) {
+            return null;
+        }
+        
+        if (serverUrl.startsWith("ws://") || serverUrl.startsWith("wss://")) {
+            return serverUrl;
+        }
+        
+        if (serverUrl.startsWith("https://")) {
+            return serverUrl.replace("https://", "wss://");
+        }
+        
+        if (serverUrl.startsWith("http://")) {
+            return serverUrl.replace("http://", "ws://");
+        }
+        
+        return "ws://" + serverUrl;
+    }
+    
     private void connect() {
         if (!running.get()) {
             return;
@@ -105,9 +125,8 @@ public class WebSocketConfigSynchronizer implements ConfigSynchronizer {
             String serverUrl = properties.getServerUrl();
             String wsPath = properties.getWebsocket().getPath();
             
-            String wsUrl = serverUrl.replace("http://", "ws://")
-                                     .replace("https://", "wss://") 
-                                     + wsPath + "?serviceCode=" + serviceCode;
+            String wsBaseUrl = convertToWebSocketUrl(serverUrl);
+            String wsUrl = wsBaseUrl + wsPath + "?serviceCode=" + serviceCode;
             
             log.info("Connecting to WebSocket: {}", wsUrl);
             

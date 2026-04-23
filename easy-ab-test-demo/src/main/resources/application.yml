@@ -3,10 +3,14 @@ server:
 
 abtest:
   enabled: true
-  sync-mode: HTTP
-  service-code: demo-service
-  server-url: http://localhost:8081
-  http:
-    sync-interval-seconds: 5
-    connect-timeout: 3000
-    read-timeout: 5000
+  sync-mode: websocket
+  service-code: service_help_1
+  server-url: ws://localhost:8080
+  websocket:
+    path: "/ws/config"              # WebSocket路径
+    reconnect-interval-seconds: 5   # 重连间隔
+    max-reconnect-attempts: 10      # 最大重连次数
+
+logging:
+  level:
+    com.meetchance.abtest.starter.client.DefaultAbTestClient: debug
