@@ -5,7 +5,6 @@ import com.meetchance.abtest.starter.config.AbTestProperties;
 import com.meetchance.abtest.starter.model.ServiceConfigDTO;
 import com.meetchance.abtest.starter.store.ConfigStore;
 import lombok.extern.slf4j.Slf4j;
-import java.net.URI;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -112,7 +111,7 @@ public class WebSocketConfigSynchronizer implements ConfigSynchronizer {
             
             log.info("Connecting to WebSocket: {}", wsUrl);
             
-            webSocketClient.doHandshake(new AbTestWebSocketHandler(), URI.create(wsUrl))
+            webSocketClient.execute(new AbTestWebSocketHandler(), wsUrl)
                 .thenAccept(s -> {
                     this.session = s;
                     reconnectAttempts.set(0);
