@@ -1,0 +1,129 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+}
+
+.login-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-box {
+  width: 400px;
+  padding: 40px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.login-title {
+  text-align: center;
+  margin-bottom: 30px;
+  color: #333;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.layout-container {
+  height: 100%;
+}
+
+.layout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.layout-aside {
+  background: #fff;
+  border-right: 1px solid #e6e6e6;
+}
+
+.layout-main {
+  padding: 20px;
+  background: #f5f7fa;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 20px;
+}
+
+.toolbar {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-content {
+  background: #fff;
+  border-radius: 4px;
+  padding: 20px;
+}
+
+.form-item-row {
+  display: flex;
+  gap: 20px;
+}
+
+.form-item-row .el-form-item {
+  flex: 1;
+}
+
+.group-item {
+  border: 1px solid #e6e6e6;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 15px;
+  background: #fafafa;
+}
+
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.group-title {
+  font-weight: 600;
+  color: #303133;
+}
+
+.config-textarea {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.status-tag {
+  font-size: 12px;
+}
